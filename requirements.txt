@@ -1,0 +1,10 @@
+# Required libraries for the project
+pytesseract
+pdfplumber
+PyPDF2
+transformers
+faiss-cpu
+sentence-transformers
+spacy
+googletrans==4.0.0-rc1
+langdetect
