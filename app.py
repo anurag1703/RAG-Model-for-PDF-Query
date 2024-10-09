@@ -7,23 +7,20 @@ import spacy
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
-
-import spacy
 import subprocess
 import sys
 
+# Check for spaCy model and download if needed
 try:
     nlp = spacy.load('en_core_web_sm')
 except OSError:
-    # If the model isn't available, install it
     subprocess.run([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
     nlp = spacy.load('en_core_web_sm')
 
-
-# Load language model
-nlp = spacy.load('en_core_web_sm')
+# Load sentence transformer model
 embedding_model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
+# Faiss index class
 class FaissIndex:
     def __init__(self, dimension):
         self.index = faiss.IndexFlatL2(dimension)
@@ -35,18 +32,30 @@ class FaissIndex:
         distances, indices = self.index.search(query_embedding, k)
         return distances, indices
 
-def ocr_image(image_path, lang='eng'):
-    img = Image.open(image_path)
-    text = pytesseract.image_to_string(img, lang=lang)
+# OCR function (converts image to text)
+def ocr_image(image, lang='eng'):
+    text = pytesseract.image_to_string(image, lang=lang)
     return text
 
-def extract_text_from_pdf(pdf_path):
+# Extract text from PDF (for digital PDFs)
+def extract_text_from_pdf(pdf_file):
     text = ""
-    with pdfplumber.open(pdf_path) as pdf:
+    with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
             text += page.extract_text() or ""
     return text
 
+# Convert scanned PDFs into images (using PyPDF2 for now)
+def pdf_to_images(pdf_file):
+    images = []
+    with pdfplumber.open(pdf_file) as pdf:
+        for page in pdf.pages:
+            # If the page has no text, it might be scanned, so convert it to an image
+            img = page.to_image()
+            images.append(img.original)
+    return images
+
+# Chunk text for processing
 def chunk_text(text, chunk_size=300):
     doc = nlp(text)
     chunks = []
@@ -60,16 +69,18 @@ def chunk_text(text, chunk_size=300):
         chunks.append(current_chunk)
     return chunks
 
+# Get embeddings for text chunks
 def get_embeddings(text_list):
     return embedding_model.encode(text_list)
 
+# Retrieve relevant documents using FAISS
 def retrieve_documents(query, index, documents, k=5):
     query_embedding = get_embeddings([query])
     distances, indices = index.search(query_embedding, k)
     results = [documents[i] for i in indices[0]]
     return results
 
-# Streamlit App
+# Streamlit app
 def main():
     st.title("Multilingual PDF RAG System")
 
@@ -79,21 +90,25 @@ def main():
     if uploaded_files:
         documents = []
         all_chunks = []
+        index = None
         
         # Process each PDF
         for uploaded_file in uploaded_files:
             with st.spinner(f"Processing {uploaded_file.name}..."):
                 pdf_text = extract_text_from_pdf(uploaded_file)
                 if not pdf_text:
-                    # If text extraction fails, attempt OCR
+                    # If text extraction fails, attempt OCR by converting PDF pages to images
                     st.warning(f"Could not extract text from {uploaded_file.name}, trying OCR...")
-                    pdf_text = ocr_image(uploaded_file)
+                    images = pdf_to_images(uploaded_file)
+                    pdf_text = ""
+                    for image in images:
+                        pdf_text += ocr_image(image)
                 
-                # Chunk and store text
+                # Chunk and store the extracted text
                 chunks = chunk_text(pdf_text)
                 documents.extend(chunks)
                 all_chunks.extend(chunks)
-        
+
         # Build FAISS index for embeddings
         if documents:
             embeddings = get_embeddings(all_chunks)
@@ -101,7 +116,7 @@ def main():
             index.add_embeddings(embeddings)
             st.success("Documents processed and indexed successfully!")
         
-        # Query Input
+        # Query input
         query = st.text_input("Enter your query:")
         
         if query and documents:
