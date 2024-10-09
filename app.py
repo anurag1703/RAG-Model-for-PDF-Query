@@ -8,7 +8,19 @@ from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
 
-# Load models
+import spacy
+import subprocess
+import sys
+
+try:
+    nlp = spacy.load('en_core_web_sm')
+except OSError:
+    # If the model isn't available, install it
+    subprocess.run([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load('en_core_web_sm')
+
+
+# Load language model
 nlp = spacy.load('en_core_web_sm')
 embedding_model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
