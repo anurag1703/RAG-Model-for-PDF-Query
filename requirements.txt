@@ -1,11 +1,8 @@
-# Required libraries for the project
-pytesseract
+pytesseract 
 pdfplumber
-PyPDF2
-transformers
-faiss-cpu
-sentence-transformers
-googletrans==4.0.0-rc1
-langdetect
-streamlit
+faiss-cpu 
+sentence-transformers 
+googletrans 
+langdetect 
+streamlit 
 spacy
